@@ -1,0 +1,17 @@
+[
+  {"question": "How much does the Growth plan cost?", "note": "answerable"},
+  {"question": "Do I need a credit card to start the free trial?", "note": "answerable"},
+  {"question": "Which identity providers can I use for SSO?", "note": "answerable"},
+  {"question": "What happens if I exceed the API rate limit?", "note": "answerable"},
+  {"question": "How do I export all of my tickets?", "note": "answerable"},
+  {"question": "What uptime SLA do you offer and what are the credits?", "note": "answerable"},
+  {"question": "I use SSO and the password reset link doesn't work. Why?", "note": "answerable"},
+  {"question": "Where is my data stored, and can it be hosted in the US?", "note": "answerable"},
+  {"question": "Can my agents answer tickets from Slack?", "note": "answerable"},
+  {"question": "How many agent seats can I have on the Starter plan?", "note": "answerable"},
+  {"question": "Does Nimbus Desk integrate with Microsoft Teams?", "note": "not_in_kb"},
+  {"question": "Can I self-host Nimbus Desk on my own servers?", "note": "not_in_kb"},
+  {"question": "What is your refund policy if I cancel mid-year?", "note": "not_in_kb"},
+  {"question": "Does the API support webhooks for ticket events?", "note": "not_in_kb"},
+  {"question": "Is there a phone number I can call for urgent support?", "note": "not_in_kb"}
+]

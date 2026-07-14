@@ -1,0 +1,50 @@
+[
+  {
+    "id": "kb-pricing",
+    "content": "Q: What pricing plans does Nimbus Desk offer?\nA: Nimbus Desk has three plans. Starter costs 15 EUR per agent per month and includes email ticketing and a shared inbox. Growth costs 39 EUR per agent per month and adds live chat, automation rules, and reporting dashboards. Enterprise has custom pricing and adds SSO, audit logs, and a dedicated success manager."
+  },
+  {
+    "id": "kb-trial",
+    "content": "Q: Is there a free trial?\nA: Yes. Every new workspace gets a 14-day free trial of the Growth plan. No credit card is required to start the trial. When the trial ends, the workspace is automatically downgraded to a read-only state until a paid plan is chosen."
+  },
+  {
+    "id": "kb-sso",
+    "content": "Q: Does Nimbus Desk support single sign-on (SSO)?\nA: SSO via SAML 2.0 and OpenID Connect is available on the Enterprise plan only. Supported identity providers include Okta, Microsoft Entra ID, and Google Workspace. SSO enforcement can be enabled per-workspace by an admin."
+  },
+  {
+    "id": "kb-api-limits",
+    "content": "Q: What are the API rate limits?\nA: The Nimbus Desk REST API allows 100 requests per minute per API token on Starter and Growth, and 1,000 requests per minute on Enterprise. Exceeding the limit returns HTTP 429 with a Retry-After header. Rate limits are applied per token, not per workspace."
+  },
+  {
+    "id": "kb-export",
+    "content": "Q: Can I export my data?\nA: Admins can export all tickets, contacts, and knowledge base articles as CSV or JSON from Settings > Data Export. Exports are generated asynchronously and a download link is emailed within 24 hours. Attachments are exported as a separate ZIP archive."
+  },
+  {
+    "id": "kb-sla",
+    "content": "Q: What uptime does Nimbus Desk guarantee?\nA: Enterprise customers get a contractual 99.9% monthly uptime SLA with service credits: 10% of the monthly fee is credited if uptime falls below 99.9%, and 25% if it falls below 99.0%. Starter and Growth plans have no contractual SLA but share the same infrastructure."
+  },
+  {
+    "id": "kb-password",
+    "content": "Q: How do I reset my password?\nA: On the login page, click 'Forgot password' and enter your account email. A reset link valid for 60 minutes is sent to that address. If your workspace uses SSO, passwords are managed by your identity provider and the reset link will not work."
+  },
+  {
+    "id": "kb-gdpr",
+    "content": "Q: Where is my data stored and is Nimbus Desk GDPR compliant?\nA: Customer data is stored in the EU (Frankfurt, Germany) by default. Enterprise customers can request US-region hosting. Nimbus Desk is GDPR compliant, offers a signable Data Processing Agreement (DPA), and supports right-to-erasure requests via Settings > Privacy."
+  },
+  {
+    "id": "kb-slack",
+    "content": "Q: Does Nimbus Desk integrate with Slack?\nA: Yes. The Slack integration is available on Growth and Enterprise plans. It posts new-ticket notifications to a channel of your choice and lets agents reply to tickets directly from Slack threads. Install it from Settings > Integrations > Slack."
+  },
+  {
+    "id": "kb-mobile",
+    "content": "Q: Is there a mobile app?\nA: Nimbus Desk has iOS and Android apps for agents. The apps support ticket replies, internal notes, and push notifications. Admin settings and reporting are only available in the web app."
+  },
+  {
+    "id": "kb-backups",
+    "content": "Q: How is my data backed up?\nA: All customer data is backed up continuously with point-in-time recovery for 35 days. Backups are encrypted at rest with AES-256 and stored in a separate availability zone. Customers cannot restore backups themselves; contact support for recovery requests."
+  },
+  {
+    "id": "kb-agents-limit",
+    "content": "Q: Is there a limit on the number of agents or tickets?\nA: There is no limit on the number of tickets on any plan. The Starter plan is limited to 5 agent seats; Growth and Enterprise have no seat limit. Light agents (view-only collaborators) are free and unlimited on Enterprise."
+  }
+]

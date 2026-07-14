@@ -1,0 +1,6 @@
+haystack-ai>=2.6
+amazon-bedrock-haystack>=3.0
+chroma-haystack>=1.0
+boto3>=1.39
+dspy>=3.0
+python-dotenv>=1.0
