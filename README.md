@@ -88,6 +88,43 @@ python -m evaluation.evaluate --prompt prompts/optimized.txt
 Reports land in `results/baseline.json` and `results/optimized.json`
 (per-question answers, judge scores, and judge reasoning).
 
+## Web UI (eUI / EC look and feel)
+
+A FastAPI app in `app/` serves an EC-styled single-page interface for the
+assistant: ask questions (or click the sample chips — orange ones are
+hallucination traps), switch between the **baseline** and **GEPA-optimised**
+system prompt, inspect the retrieved context, and optionally score each
+answer live with the relevancy/groundedness judges.
+
+```bash
+uvicorn app.main:app --reload
+# open http://localhost:8000
+```
+
+The Chroma index is built automatically on first boot if missing. The
+"Optimised (GEPA)" toggle activates once `prompts/optimized.txt` exists
+(commit it after running the optimiser so deployments include it).
+
+## Deploying to Railway
+
+The repo ships a `Dockerfile` and `railway.toml`, so deployment is:
+
+1. Create a new Railway project → **Deploy from GitHub repo** → pick this
+   repo/branch. Railway detects the Dockerfile automatically.
+2. Under **Variables**, set:
+   - `AWS_BEARER_TOKEN_BEDROCK` — your Bedrock API key
+   - `AWS_REGION` — e.g. `us-east-1`
+   - optionally `BEDROCK_PROD_MODEL` / `BEDROCK_JUDGE_MODEL`
+3. Add a public domain under **Settings → Networking**.
+
+Notes:
+- The first boot downloads the MiniLM embedding model and indexes the
+  knowledge base; `railway.toml` sets a 300 s healthcheck timeout for this.
+- Railway's filesystem is ephemeral — the Chroma index is rebuilt on each
+  deploy from `data/knowledge_base.json`, which is fine at this size.
+- Run the GEPA optimisation locally (it is an offline batch job), commit
+  `prompts/optimized.txt`, and redeploy to expose it in the UI.
+
 ### Cost & call volume
 
 GEPA is call-hungry: each iteration runs the pipeline over a batch and calls

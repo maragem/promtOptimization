@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+# First boot downloads the MiniLM embedding model and builds the Chroma
+# index, so give the healthcheck generous headroom.
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

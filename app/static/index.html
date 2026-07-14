@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Optimisation Demo — DIGIT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Site header (EC style: white band, emblem + wordmark) -->
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a class="site-header__brand" href="/">
+        <svg class="emblem" viewBox="0 0 60 40" role="img" aria-label="European emblem">
+          <rect width="60" height="40" fill="#003399"/>
+          <g fill="#FFCC00" transform="translate(30,20)">
+            <g id="s"><polygon points="0,-4 0.94,-1.29 3.8,-1.24 1.52,0.49 2.35,3.24 0,1.6 -2.35,3.24 -1.52,0.49 -3.8,-1.24 -0.94,-1.29" transform="translate(0,-12)"/></g>
+            <use href="#s" transform="rotate(30)"/><use href="#s" transform="rotate(60)"/>
+            <use href="#s" transform="rotate(90)"/><use href="#s" transform="rotate(120)"/>
+            <use href="#s" transform="rotate(150)"/><use href="#s" transform="rotate(180)"/>
+            <use href="#s" transform="rotate(210)"/><use href="#s" transform="rotate(240)"/>
+            <use href="#s" transform="rotate(270)"/><use href="#s" transform="rotate(300)"/>
+            <use href="#s" transform="rotate(330)"/>
+          </g>
+        </svg>
+        <span class="site-header__wordmark">
+          <span class="site-header__institution">European Commission</span>
+          <span class="site-header__site">Prompt Optimisation Demo</span>
+        </span>
+      </a>
+      <span class="site-header__badge" id="model-badge">…</span>
+    </div>
+  </header>
+
+  <!-- Page header (EC style: blue band with title) -->
+  <div class="page-header">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <span>DIGIT</span> <span class="breadcrumb__sep">›</span>
+        <span>GPT@EC</span> <span class="breadcrumb__sep">›</span>
+        <span aria-current="page">Prompt optimisation</span>
+      </nav>
+      <h1 class="page-header__title">Nimbus Desk — RAG support assistant</h1>
+      <p class="page-header__subtitle">
+        Haystack retrieval-augmented generation with DSPy/GEPA-optimised prompts,
+        scored for answer relevancy and groundedness.
+      </p>
+    </div>
+  </div>
+
+  <main class="container main-grid">
+
+    <!-- Ask panel -->
+    <section class="card" aria-labelledby="ask-title">
+      <h2 class="card__title" id="ask-title">Ask a question</h2>
+
+      <div class="field">
+        <label class="field__label" for="question">Customer question</label>
+        <textarea id="question" rows="3" placeholder="e.g. How much does the Growth plan cost?"></textarea>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Sample questions</span>
+        <div class="chips" id="sample-chips"></div>
+      </div>
+
+      <div class="controls">
+        <fieldset class="segmented" id="prompt-toggle">
+          <legend class="field__label">System prompt</legend>
+          <label><input type="radio" name="prompt" value="baseline" checked /><span>Baseline</span></label>
+          <label id="optimized-option"><input type="radio" name="prompt" value="optimized" /><span>Optimised (GEPA)</span></label>
+        </fieldset>
+
+        <label class="checkbox">
+          <input type="checkbox" id="judge-toggle" />
+          <span>Score with LLM judges<br/><small id="judge-model-note"></small></span>
+        </label>
+      </div>
+
+      <button class="btn btn--primary" id="ask-btn">Ask the assistant</button>
+      <details class="prompt-preview">
+        <summary>View the active system prompt</summary>
+        <pre id="prompt-text">…</pre>
+      </details>
+    </section>
+
+    <!-- Answer panel -->
+    <section class="card" aria-labelledby="answer-title" id="answer-panel" hidden>
+      <h2 class="card__title" id="answer-title">Assistant answer</h2>
+      <div class="answer__meta" id="answer-meta"></div>
+      <div class="answer__text" id="answer-text"></div>
+
+      <div class="scores" id="scores" hidden>
+        <h3 class="section-label">Judge scores</h3>
+        <div class="scores__chips" id="score-chips"></div>
+        <pre class="scores__feedback" id="score-feedback"></pre>
+      </div>
+
+      <div class="context">
+        <h3 class="section-label">Retrieved context (top-3)</h3>
+        <div id="context-docs"></div>
+      </div>
+    </section>
+
+    <div class="spinner-overlay" id="spinner" hidden>
+      <div class="spinner" role="status" aria-label="Loading"></div>
+      <p id="spinner-text">Calling the model…</p>
+    </div>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p><strong>Prompt Optimisation Demo</strong> — internal demonstrator, not an official European Commission service.</p>
+      <p>Stack: Haystack · DSPy (GEPA) · Claude on Amazon Bedrock · switchable to GPT@EC.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
