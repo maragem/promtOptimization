@@ -105,6 +105,14 @@ The Chroma index is built automatically on first boot if missing. The
 "Optimised (GEPA)" toggle activates once `prompts/optimized.txt` exists
 (commit it after running the optimiser so deployments include it).
 
+### Access control
+
+Set `APP_PASSWORD` to gate the UI and API behind a password. Browsers get an
+EC-styled login page (`/login.html`) and a 12-hour HttpOnly session cookie;
+scripts can authenticate with `Authorization: Bearer <password>`. The
+`/api/health` endpoint stays open so Railway's healthcheck keeps working.
+If `APP_PASSWORD` is unset (e.g. local development), the app is open.
+
 ## Deploying to Railway
 
 The repo ships a `Dockerfile` and `railway.toml`, so deployment is:
@@ -114,6 +122,8 @@ The repo ships a `Dockerfile` and `railway.toml`, so deployment is:
 2. Under **Variables**, set:
    - `AWS_BEARER_TOKEN_BEDROCK` — your Bedrock API key
    - `AWS_REGION` — e.g. `us-east-1`
+   - `APP_PASSWORD` — access password for the UI/API (strongly recommended:
+     without it, anyone with the URL can trigger Bedrock calls on your key)
    - optionally `BEDROCK_PROD_MODEL` / `BEDROCK_JUDGE_MODEL`
 3. Add a public domain under **Settings → Networking**.
 

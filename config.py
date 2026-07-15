@@ -27,6 +27,11 @@ os.environ.setdefault("AWS_DEFAULT_REGION", AWS_REGION)
 PROD_MODEL = os.environ.get("BEDROCK_PROD_MODEL", "anthropic.claude-haiku-4-5")
 JUDGE_MODEL = os.environ.get("BEDROCK_JUDGE_MODEL", "anthropic.claude-opus-4-8")
 
+# --- Web app -----------------------------------------------------------------
+# If set, the web UI and API require this password (login page / Bearer token).
+# Leave unset for open access during local development.
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
 # --- Retrieval ---------------------------------------------------------------
 CHROMA_PATH = str(ROOT / ".chroma")
 COLLECTION_NAME = "nimbus_kb"

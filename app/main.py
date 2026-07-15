@@ -8,12 +8,15 @@ Run locally:   uvicorn app.main:app --reload
 On Railway:    see Dockerfile / railway.toml (uses the $PORT env var)
 """
 
+import hashlib
+import hmac
 import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -56,6 +59,70 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Prompt Optimisation Demo", lifespan=lifespan)
+
+# --- Access gate --------------------------------------------------------------
+# Enabled by setting APP_PASSWORD. Browser sessions authenticate via the login
+# page (HttpOnly cookie); scripts can send "Authorization: Bearer <password>".
+
+SESSION_COOKIE = "demo_session"
+SESSION_MAX_AGE = 12 * 3600
+# Paths that stay reachable without auth (healthcheck, login flow, page assets).
+PUBLIC_PATHS = {"/api/health", "/api/login", "/login.html", "/styles.css"}
+
+
+def session_token() -> str:
+    return hmac.new(
+        config.APP_PASSWORD.encode(), b"prompt-optimisation-demo-session", hashlib.sha256
+    ).hexdigest()
+
+
+def is_authenticated(request: Request) -> bool:
+    cookie = request.cookies.get(SESSION_COOKIE, "")
+    if cookie and hmac.compare_digest(cookie, session_token()):
+        return True
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        return hmac.compare_digest(auth[7:], config.APP_PASSWORD)
+    return False
+
+
+@app.middleware("http")
+async def access_gate(request: Request, call_next):
+    if config.APP_PASSWORD and request.url.path not in PUBLIC_PATHS:
+        if not is_authenticated(request):
+            if request.url.path.startswith("/api/"):
+                return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+            return RedirectResponse(url="/login.html", status_code=303)
+    return await call_next(request)
+
+
+class LoginRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+
+
+@app.post("/api/login")
+def login(req: LoginRequest):
+    if not config.APP_PASSWORD:
+        return {"status": "open"}  # no gate configured
+    if not hmac.compare_digest(req.password, config.APP_PASSWORD):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    response = JSONResponse(content={"status": "ok"})
+    response.set_cookie(
+        SESSION_COOKIE,
+        session_token(),
+        max_age=SESSION_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@app.post("/api/logout")
+def logout():
+    response = JSONResponse(content={"status": "ok"})
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
 
 
 class AskRequest(BaseModel):
