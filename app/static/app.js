@@ -21,8 +21,35 @@ async function fetchJSON(url, options = {}, timeoutMs = 30000) {
   }
   if (res.status === 401) { window.location.href = "/login.html"; return {}; }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.detail || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(body.detail || body.error || `Request failed (${res.status})`);
   return body;
+}
+
+function setReady(ready) {
+  $("ask-btn").disabled = !ready;
+  $("ask-btn").title = ready ? "" : "Initialise the assistant first";
+  $("init-panel").hidden = ready;
+}
+
+async function initialiseAssistant() {
+  const statusEl = $("init-status");
+  $("init-btn").disabled = true;
+  statusEl.className = "init-status";
+  statusEl.textContent =
+    "Initialising — downloading the embedding model, building the index and " +
+    "making a test call to the LLM. This can take a couple of minutes on the first run…";
+  try {
+    const res = await fetchJSON("/api/init", { method: "POST" }, 300000);
+    statusEl.className = "init-status ok";
+    statusEl.textContent =
+      `Ready. Index built in ${res.index_s}s, model test call in ${res.model_s}s ` +
+      `(${res.model}, ${res.region}).`;
+    setReady(true);
+  } catch (err) {
+    statusEl.className = "init-status error";
+    statusEl.textContent = err.message;
+    $("init-btn").disabled = false;
+  }
 }
 
 function selectedPrompt() {
@@ -143,10 +170,18 @@ async function init() {
     console.error(err);
   }
 
+  try {
+    const status = await fetchJSON("/api/status");
+    setReady(status.ready);
+  } catch (err) {
+    console.error(err);
+  }
+
   await refreshPromptPreview();
   document.querySelectorAll('input[name="prompt"]').forEach((el) =>
     el.addEventListener("change", refreshPromptPreview)
   );
+  $("init-btn").addEventListener("click", initialiseAssistant);
   $("ask-btn").addEventListener("click", ask);
   $("question").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask();

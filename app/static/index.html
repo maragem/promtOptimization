@@ -53,6 +53,19 @@
 
   <main class="container main-grid">
 
+    <!-- Init panel: nothing is loaded at startup -->
+    <section class="card init-card" id="init-panel" aria-labelledby="init-title">
+      <h2 class="card__title" id="init-title">Initialise the assistant</h2>
+      <p>
+        Nothing is loaded at startup. Initialisation downloads the embedding
+        model (first run only), builds the knowledge-base index, and makes one
+        test call to the LLM — so any configuration problem shows up here,
+        with the exact error, before you start asking questions.
+      </p>
+      <button class="btn btn--primary" id="init-btn">Load model &amp; build index</button>
+      <p class="init-status" id="init-status"></p>
+    </section>
+
     <!-- Ask panel -->
     <section class="card" aria-labelledby="ask-title">
       <h2 class="card__title" id="ask-title">Ask a question</h2>
@@ -80,7 +93,7 @@
         </label>
       </div>
 
-      <button class="btn btn--primary" id="ask-btn">Ask the assistant</button>
+      <button class="btn btn--primary" id="ask-btn" disabled title="Initialise the assistant first">Ask the assistant</button>
       <details class="prompt-preview">
         <summary>View the active system prompt</summary>
         <pre id="prompt-text">…</pre>

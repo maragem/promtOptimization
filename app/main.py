@@ -13,7 +13,6 @@ import hmac
 import json
 import logging
 import time
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -40,7 +39,7 @@ def get_pipeline():
 
 
 def ensure_index() -> None:
-    """Build the Chroma index on first boot (Railway's filesystem is ephemeral)."""
+    """Build the Chroma index if missing (Railway's filesystem is ephemeral)."""
     from rag.retrieval import document_store
 
     store = document_store()
@@ -51,16 +50,11 @@ def ensure_index() -> None:
         build_index()
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    try:
-        ensure_index()
-    except Exception:  # index lazily on first request instead of failing boot
-        logger.exception("Indexing at startup failed; will retry on first request")
-    yield
+# Nothing is loaded at startup: the embedding model, the index, and the
+# Bedrock connection are all initialised on demand via POST /api/init.
+app = FastAPI(title="Prompt Optimisation Demo")
 
-
-app = FastAPI(title="Prompt Optimisation Demo", lifespan=lifespan)
+_ready = False
 
 # --- Access gate --------------------------------------------------------------
 # Enabled by setting APP_PASSWORD. Browser sessions authenticate via the login
@@ -165,6 +159,62 @@ def get_config():
 @app.get("/api/prompt/{variant}")
 def get_prompt(variant: str):
     return {"variant": variant, "text": load_prompt(variant)}
+
+
+@app.get("/api/status")
+def status():
+    return {"ready": _ready, "model": config.PROD_MODEL, "region": config.AWS_REGION}
+
+
+@app.post("/api/init")
+def init_assistant():
+    """Manual initialisation, triggered from the UI after login.
+
+    Stage 1: download the embedding model (first run) and build the index.
+    Stage 2: build the pipeline and make one minimal Bedrock test call.
+    """
+    global _ready
+    start = time.perf_counter()
+
+    try:
+        ensure_index()
+    except Exception as exc:
+        logger.exception("Initialisation failed at the indexing stage")
+        return JSONResponse(
+            status_code=502,
+            content={"status": "error", "stage": "index", "error": f"{type(exc).__name__}: {exc}"},
+        )
+    indexed_at = time.perf_counter()
+
+    from haystack.dataclasses import ChatMessage
+
+    try:
+        llm = get_pipeline().get_component("llm")
+        result = llm.run(messages=[ChatMessage.from_user("Reply with the single word: pong")])
+        reply = result["replies"][0].text
+    except Exception as exc:
+        logger.exception("Initialisation failed at the model stage")
+        return JSONResponse(
+            status_code=502,
+            content={
+                "status": "error",
+                "stage": "model",
+                "model": config.PROD_MODEL,
+                "region": config.AWS_REGION,
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+
+    _ready = True
+    logger.info("Initialised: index %.1fs, model test %.1fs", indexed_at - start, time.perf_counter() - indexed_at)
+    return {
+        "status": "ok",
+        "model": config.PROD_MODEL,
+        "region": config.AWS_REGION,
+        "index_s": round(indexed_at - start, 1),
+        "model_s": round(time.perf_counter() - indexed_at, 1),
+        "reply": reply,
+    }
 
 
 @app.get("/api/test-model")

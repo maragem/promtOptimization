@@ -101,9 +101,13 @@ uvicorn app.main:app --reload
 # open http://localhost:8000
 ```
 
-The Chroma index is built automatically on first boot if missing. The
-"Optimised (GEPA)" toggle activates once `prompts/optimized.txt` exists
-(commit it after running the optimiser so deployments include it).
+Nothing is loaded at startup: after signing in, click **"Load model &
+build index"** — initialisation downloads the embedding model (first run),
+builds the Chroma index, and makes one test call to the LLM, so any
+configuration problem surfaces there with the exact error before questions
+are asked. The "Optimised (GEPA)" toggle activates once
+`prompts/optimized.txt` exists (commit it after running the optimiser so
+deployments include it).
 
 ### Access control
 
