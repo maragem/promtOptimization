@@ -61,9 +61,9 @@ Required environment (see `.env.example`):
 | Variable | Purpose |
 |---|---|
 | `AWS_BEARER_TOKEN_BEDROCK` | Your Bedrock API key. boto3 (Haystack) and LiteLLM (DSPy) both read it automatically — no AWS access/secret keys needed. |
-| `AWS_REGION` | Region where the Claude models are enabled (default `us-east-1`). |
-| `BEDROCK_PROD_MODEL` | Default `anthropic.claude-haiku-4-5`. |
-| `BEDROCK_JUDGE_MODEL` | Default `anthropic.claude-opus-4-8`. |
+| `AWS_REGION` | Region where the Claude models are enabled (default `eu-west-1`). |
+| `BEDROCK_PROD_MODEL` | Default `eu.anthropic.claude-haiku-4-5`. |
+| `BEDROCK_JUDGE_MODEL` | Default `eu.anthropic.claude-opus-4-8`. |
 
 > If your Bedrock account serves Claude through cross-region inference
 > profiles, prefix the model IDs with the region group, e.g.
@@ -121,7 +121,7 @@ The repo ships a `Dockerfile` and `railway.toml`, so deployment is:
    repo/branch. Railway detects the Dockerfile automatically.
 2. Under **Variables**, set:
    - `AWS_BEARER_TOKEN_BEDROCK` — your Bedrock API key
-   - `AWS_REGION` — e.g. `us-east-1`
+   - `AWS_REGION` — e.g. `eu-west-1`
    - `APP_PASSWORD` — access password for the UI/API (strongly recommended:
      without it, anyone with the URL can trigger Bedrock calls on your key)
    - optionally `BEDROCK_PROD_MODEL` / `BEDROCK_JUDGE_MODEL`

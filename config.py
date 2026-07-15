@@ -19,13 +19,14 @@ ROOT = Path(__file__).resolve().parent
 # --- AWS / Bedrock -----------------------------------------------------------
 # Auth is a Bedrock API key (bearer token) in AWS_BEARER_TOKEN_BEDROCK.
 # boto3 >= 1.39 and LiteLLM pick it up from the environment automatically.
-AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+AWS_REGION = os.environ.get("AWS_REGION", "eu-west-1")
 os.environ.setdefault("AWS_DEFAULT_REGION", AWS_REGION)
 
-# If your account requires cross-region inference profiles, prefix the IDs
-# with the region group, e.g. "eu.anthropic.claude-haiku-4-5".
-PROD_MODEL = os.environ.get("BEDROCK_PROD_MODEL", "anthropic.claude-haiku-4-5")
-JUDGE_MODEL = os.environ.get("BEDROCK_JUDGE_MODEL", "anthropic.claude-opus-4-8")
+# In EU regions Bedrock serves Claude via cross-region inference profiles,
+# so the defaults carry the "eu." prefix. Use the exact IDs your Bedrock
+# console shows (Model catalog -> model detail -> inference profile ID).
+PROD_MODEL = os.environ.get("BEDROCK_PROD_MODEL", "eu.anthropic.claude-haiku-4-5")
+JUDGE_MODEL = os.environ.get("BEDROCK_JUDGE_MODEL", "eu.anthropic.claude-opus-4-8")
 
 # --- Web app -----------------------------------------------------------------
 # If set, the web UI and API require this password (login page / Bearer token).
