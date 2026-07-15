@@ -27,6 +27,17 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(messa
 logger = logging.getLogger("app")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+
+def _build_fingerprint() -> str:
+    """Short hash of the frontend assets — identifies what is actually deployed."""
+    digest = hashlib.sha1()
+    for path in sorted(STATIC_DIR.glob("*")):
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:8]
+
+
+BUILD_ID = _build_fingerprint()
+
 _pipeline = None
 
 
@@ -138,9 +149,22 @@ def load_prompt(variant: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    """Stop browsers from serving stale JS/CSS after a redeploy.
+
+    no-cache still allows ETag revalidation, so unchanged assets stay cheap,
+    but every page load checks with the server instead of trusting the cache.
+    """
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "build": BUILD_ID}
 
 
 @app.get("/api/config")

@@ -412,6 +412,10 @@ async function init() {
     console.error(err);
   }
 
+  fetchJSON("/api/health")
+    .then((h) => { if (h.build) $("build-badge").textContent = `Build ${h.build}.`; })
+    .catch(() => {});
+
   setStep(0);
   pollOptStatus(); // pick up a run already in progress (e.g. page reload)
 }
