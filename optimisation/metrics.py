@@ -57,6 +57,20 @@ class GroundednessJudge(dspy.Signature):
     score: float = dspy.OutputField(desc="A number between 0.0 and 1.0")
 
 
+class CorrectnessJudge(dspy.Signature):
+    """Rate from 0.0 to 1.0 whether the answer agrees with the gold reference
+    answer. 1.0 means factually equivalent (wording may differ, extra correct
+    detail is fine); 0.0 means it contradicts or misses the reference. If the
+    answer claims the information is unavailable although a gold answer
+    exists, score 0.0."""
+
+    question: str = dspy.InputField()
+    gold_answer: str = dspy.InputField(desc="The reference (gold) answer")
+    answer: str = dspy.InputField(desc="The answer being evaluated")
+    reasoning: str = dspy.OutputField(desc="Brief justification for the score")
+    score: float = dspy.OutputField(desc="A number between 0.0 and 1.0")
+
+
 def _clamp(value) -> float:
     try:
         return max(0.0, min(1.0, float(value)))
@@ -64,27 +78,44 @@ def _clamp(value) -> float:
         return 0.0
 
 
-def judge_answer(question: str, context: str, answer: str) -> dict:
-    """Score one (question, context, answer) triple with both judges."""
+def judge_answer(question: str, context: str, answer: str, gold_answer: str | None = None) -> dict:
+    """Score one (question, context, answer) triple.
+
+    Always scores relevancy + groundedness (label-free). When a gold
+    reference answer is available (golden datasets), also scores correctness
+    and folds it into the combined score.
+    """
     with dspy.context(lm=judge_lm()):
         rel = dspy.Predict(RelevancyJudge)(question=question, answer=answer)
         grd = dspy.Predict(GroundednessJudge)(question=question, context=context, answer=answer)
+        cor = None
+        if gold_answer:
+            cor = dspy.Predict(CorrectnessJudge)(
+                question=question, gold_answer=gold_answer, answer=answer
+            )
 
-    relevancy = _clamp(rel.score)
-    groundedness = _clamp(grd.score)
-    feedback = (
-        f"Answer relevancy: {relevancy:.2f} — {rel.reasoning}\n"
-        f"Groundedness: {groundedness:.2f} — {grd.reasoning}"
-    )
+    scores = {"relevancy": _clamp(rel.score), "groundedness": _clamp(grd.score)}
+    feedback_lines = [
+        f"Answer relevancy: {scores['relevancy']:.2f} — {rel.reasoning}",
+        f"Groundedness: {scores['groundedness']:.2f} — {grd.reasoning}",
+    ]
+    if cor is not None:
+        scores["correctness"] = _clamp(cor.score)
+        feedback_lines.append(
+            f"Correctness vs gold answer: {scores['correctness']:.2f} — {cor.reasoning}"
+        )
+
     return {
-        "relevancy": relevancy,
-        "groundedness": groundedness,
-        "score": (relevancy + groundedness) / 2,
-        "feedback": feedback,
+        **scores,
+        "score": sum(scores.values()) / len(scores),
+        "feedback": "\n".join(feedback_lines),
     }
 
 
 def gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
-    """GEPA-compatible metric: mean of the two judge scores + rich feedback."""
-    result = judge_answer(gold.question, pred.context, pred.answer)
+    """GEPA-compatible metric: mean of the judge scores + rich feedback."""
+    result = judge_answer(
+        gold.question, pred.context, pred.answer,
+        gold_answer=getattr(gold, "answer", None),
+    )
     return dspy.Prediction(score=result["score"], feedback=result["feedback"])

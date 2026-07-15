@@ -113,6 +113,77 @@ function renderAnswer(data) {
   $("answer-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+// --- Prompt optimisation (GEPA) ------------------------------------------
+
+function enableOptimizedToggle() {
+  const opt = $("optimized-option");
+  opt.classList.remove("disabled");
+  opt.querySelector("input").disabled = false;
+  opt.title = "";
+}
+
+function renderOptStatus(job) {
+  const statusEl = $("opt-status");
+  const btn = $("opt-btn");
+  if (job.status === "running") {
+    btn.disabled = true;
+    statusEl.className = "init-status";
+    let text = `Running (${job.budget} budget, dataset: ${job.dataset}) — ` +
+      `${job.metric_calls} judge evaluations, ${Math.round(job.elapsed_s / 60)} min elapsed.`;
+    if (job.last_scores) {
+      text += "\nLatest scores: " + Object.entries(job.last_scores)
+        .filter(([k]) => k !== "score")
+        .map(([k, v]) => `${k} ${Number(v).toFixed(2)}`)
+        .join(" · ");
+    }
+    statusEl.textContent = text;
+  } else if (job.status === "done") {
+    btn.disabled = false;
+    statusEl.className = "init-status ok";
+    statusEl.textContent =
+      `Finished after ${job.metric_calls} judge evaluations ` +
+      `(${Math.round(job.elapsed_s / 60)} min). The optimised prompt is active — ` +
+      "remember to commit prompts/optimized.txt to keep it across deploys.";
+    $("opt-result").hidden = false;
+    $("opt-prompt").textContent = job.prompt || "";
+    enableOptimizedToggle();
+  } else if (job.status === "error") {
+    btn.disabled = false;
+    statusEl.className = "init-status error";
+    statusEl.textContent = `Optimisation failed after ${job.metric_calls || 0} evaluations: ${job.error}`;
+  }
+}
+
+async function pollOptStatus() {
+  let job;
+  try {
+    job = await fetchJSON("/api/optimize/status");
+  } catch (err) {
+    console.error(err);
+    return;
+  }
+  renderOptStatus(job);
+  if (job.status === "running") setTimeout(pollOptStatus, 4000);
+}
+
+async function startOptimisation() {
+  if (!confirm(
+    "Start the GEPA optimisation? This makes hundreds of model calls and " +
+    "typically takes 15–40 minutes."
+  )) return;
+  try {
+    await fetchJSON("/api/optimize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ budget: "light" }),
+    });
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
+  pollOptStatus();
+}
+
 async function ask() {
   const question = $("question").value.trim();
   if (!question) { $("question").focus(); return; }
@@ -153,7 +224,7 @@ async function init() {
     }
 
     $("sample-chips").replaceChildren(
-      ...cfg.sample_questions.map((q) => {
+      ...cfg.sample_questions.slice(0, 15).map((q) => {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "chip" + (q.note === "not_in_kb" ? " chip--trap" : "");
@@ -182,7 +253,9 @@ async function init() {
     el.addEventListener("change", refreshPromptPreview)
   );
   $("init-btn").addEventListener("click", initialiseAssistant);
+  $("opt-btn").addEventListener("click", startOptimisation);
   $("ask-btn").addEventListener("click", ask);
+  pollOptStatus(); // pick up a run already in progress (e.g. page reload)
   $("question").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask();
   });

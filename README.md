@@ -146,6 +146,45 @@ both judges per example. `auto="light"` keeps this in the low hundreds of
 calls; DSPy caches LLM responses on disk, so re-runs are cheap. Bump to
 `auto="medium"` only once the light run looks sane.
 
+## Golden datasets (Hugging Face)
+
+The stack is dataset-agnostic: `DATASET_DIR` selects which corpus + question
+set everything (indexing, optimisation, evaluation, UI) runs on. The default
+is the label-free synthetic Nimbus KB. To use a golden dataset with reference
+answers instead:
+
+```bash
+python -m indexing.fetch_hf_golden          # rag-datasets/rag-mini-wikipedia
+export DATASET_DIR=data/hf
+python -m indexing.build_index
+python -m optimisation.run_gepa
+```
+
+The fetch script uses the Hugging Face datasets-server REST API (no extra
+dependencies) and writes `data/hf/knowledge_base.json` + `questions.json`;
+other datasets/columns are configurable via CLI flags. When questions carry
+gold answers, a third LLM-judge metric — **correctness vs the reference
+answer** — is added to relevancy + groundedness automatically, in both GEPA
+and evaluation. Trade-off vs the deck's label-free approach: golden data
+anchors the optimisation to ground truth, but ties you to a corpus that must
+match the questions (that's why the fetch script pulls the dataset's own
+passages as the knowledge base).
+
+## Running the optimisation from the UI
+
+The web app can run GEPA as a server-side background job: the **"Prompt
+optimisation (GEPA)"** panel starts it (light budget), shows live progress
+(judge evaluations, elapsed time, latest scores), and on completion displays
+the winning prompt and activates the "Optimised (GEPA)" toggle. Endpoints:
+`POST /api/optimize` and `GET /api/optimize/status`.
+
+Caveats on Railway:
+- the run must finish within one container lifetime (a redeploy kills it);
+- the resulting `prompts/optimized.txt` lives on the ephemeral filesystem —
+  copy it from the UI ("View the optimised prompt") into the repo and commit
+  to make it permanent;
+- one run at a time; a second start returns 409.
+
 ## Switching to GPT@EC later
 
 The stack is provider-agnostic by design; the swap is confined to two spots:

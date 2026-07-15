@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -148,6 +149,7 @@ def get_config():
         "production_model": config.PROD_MODEL,
         "judge_model": config.JUDGE_MODEL,
         "region": config.AWS_REGION,
+        "dataset": config.DATA_DIR.name,
         "prompts": {
             "baseline": config.BASELINE_PROMPT_PATH.exists(),
             "optimized": config.OPTIMIZED_PROMPT_PATH.exists(),
@@ -215,6 +217,77 @@ def init_assistant():
         "model_s": round(time.perf_counter() - indexed_at, 1),
         "reply": reply,
     }
+
+
+# --- Prompt optimisation as a background job ----------------------------------
+# GEPA takes many minutes and hundreds of model calls, so it runs in a
+# daemon thread; the UI polls /api/optimize/status for live progress.
+
+_opt_lock = threading.Lock()
+_opt_job = {"status": "idle"}
+
+
+def _fresh_job(budget: str) -> dict:
+    return {
+        "status": "running",
+        "budget": budget,
+        "dataset": config.DATA_DIR.name,
+        "started_at": time.time(),
+        "metric_calls": 0,
+        "last_scores": None,
+        "error": None,
+        "prompt": None,
+    }
+
+
+def _run_optimisation_job(budget: str) -> None:
+    try:
+        ensure_index()
+        from optimisation.run_gepa import run_optimisation
+
+        def progress(result: dict) -> None:
+            with _opt_lock:
+                _opt_job["metric_calls"] += 1
+                _opt_job["last_scores"] = {
+                    k: v for k, v in result.items() if k not in ("feedback",)
+                }
+
+        prompt = run_optimisation(budget=budget, progress=progress)
+        with _opt_lock:
+            _opt_job.update(status="done", prompt=prompt, finished_at=time.time())
+        logger.info("Optimisation finished after %d metric calls", _opt_job["metric_calls"])
+    except Exception as exc:
+        logger.exception("Optimisation job failed")
+        with _opt_lock:
+            _opt_job.update(
+                status="error",
+                error=f"{type(exc).__name__}: {exc}",
+                finished_at=time.time(),
+            )
+
+
+class OptimizeRequest(BaseModel):
+    budget: str = Field(default="light", pattern="^(light|medium|heavy)$")
+
+
+@app.post("/api/optimize")
+def start_optimization(req: OptimizeRequest):
+    global _opt_job
+    with _opt_lock:
+        if _opt_job.get("status") == "running":
+            raise HTTPException(status_code=409, detail="An optimisation run is already in progress")
+        _opt_job = _fresh_job(req.budget)
+    threading.Thread(target=_run_optimisation_job, args=(req.budget,), daemon=True).start()
+    return {"status": "started", "budget": req.budget}
+
+
+@app.get("/api/optimize/status")
+def optimization_status():
+    with _opt_lock:
+        job = dict(_opt_job)
+    if job.get("started_at"):
+        job["elapsed_s"] = round((job.get("finished_at") or time.time()) - job["started_at"], 1)
+    return job
 
 
 @app.get("/api/test-model")

@@ -118,6 +118,27 @@
       </div>
     </section>
 
+    <!-- Optimisation panel -->
+    <section class="card init-card" id="opt-panel" aria-labelledby="opt-title">
+      <h2 class="card__title" id="opt-title">Prompt optimisation (GEPA)</h2>
+      <p>
+        Runs the genetic-Pareto optimisation on the server: the judges score a
+        batch of questions, the reflection model proposes child prompts, and
+        the Pareto rule keeps only non-regressing improvements. Expect
+        <strong>hundreds of model calls and 15&ndash;40 minutes</strong> on the
+        light budget. When it finishes, the winning prompt is saved and the
+        "Optimised (GEPA)" toggle activates.
+        <em>On Railway the file persists only until the next deploy — commit
+        <code>prompts/optimized.txt</code> to keep it.</em>
+      </p>
+      <button class="btn btn--primary" id="opt-btn">Run optimisation</button>
+      <p class="init-status" id="opt-status"></p>
+      <details class="prompt-preview" id="opt-result" hidden>
+        <summary>View the optimised prompt</summary>
+        <pre id="opt-prompt"></pre>
+      </details>
+    </section>
+
     <div class="spinner-overlay" id="spinner" hidden>
       <div class="spinner" role="status" aria-label="Loading"></div>
       <p id="spinner-text">Calling the model…</p>

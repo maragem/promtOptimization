@@ -40,21 +40,23 @@ def main() -> None:
     for i, item in enumerate(questions, 1):
         question = item["question"]
         reply, documents = answer(pipe, question, system_prompt)
-        scores = judge_answer(question, format_context(documents), reply)
-        rows.append(
-            {
-                "question": question,
-                "note": item.get("note", ""),
-                "answer": reply,
-                "relevancy": scores["relevancy"],
-                "groundedness": scores["groundedness"],
-                "feedback": scores["feedback"],
-            }
+        scores = judge_answer(
+            question, format_context(documents), reply, gold_answer=item.get("answer")
         )
-        print(
-            f"[{i:2}/{len(questions)}] rel={scores['relevancy']:.2f} "
-            f"grd={scores['groundedness']:.2f} ({item.get('note', '')}) {question}"
-        )
+        row = {
+            "question": question,
+            "note": item.get("note", ""),
+            "answer": reply,
+            "relevancy": scores["relevancy"],
+            "groundedness": scores["groundedness"],
+            "feedback": scores["feedback"],
+        }
+        line = f"[{i:2}/{len(questions)}] rel={scores['relevancy']:.2f} grd={scores['groundedness']:.2f}"
+        if "correctness" in scores:
+            row["correctness"] = scores["correctness"]
+            line += f" cor={scores['correctness']:.2f}"
+        rows.append(row)
+        print(f"{line} ({item.get('note', '')}) {question}")
 
     mean_rel = statistics.mean(r["relevancy"] for r in rows)
     mean_grd = statistics.mean(r["groundedness"] for r in rows)
@@ -63,6 +65,9 @@ def main() -> None:
     print(f"Model:             {config.PROD_MODEL}")
     print(f"Mean relevancy:    {mean_rel:.3f}")
     print(f"Mean groundedness: {mean_grd:.3f}")
+    correctness_rows = [r["correctness"] for r in rows if "correctness" in r]
+    if correctness_rows:
+        print(f"Mean correctness:  {statistics.mean(correctness_rows):.3f}")
     print("=" * 60)
 
     config.RESULTS_DIR.mkdir(exist_ok=True)

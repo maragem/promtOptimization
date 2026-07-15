@@ -33,13 +33,20 @@ JUDGE_MODEL = os.environ.get("BEDROCK_JUDGE_MODEL", "eu.anthropic.claude-opus-4-
 # Leave unset for open access during local development.
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
+# --- Dataset -----------------------------------------------------------------
+# DATASET_DIR selects the corpus + questions the whole stack runs on:
+#   data     -> synthetic Nimbus Desk KB, label-free questions (default)
+#   data/hf  -> golden dataset fetched from Hugging Face
+#               (python -m indexing.fetch_hf_golden), questions carry gold
+#               answers that enable the extra correctness metric.
+DATA_DIR = ROOT / os.environ.get("DATASET_DIR", "data")
+
 # --- Retrieval ---------------------------------------------------------------
 CHROMA_PATH = str(ROOT / ".chroma")
-COLLECTION_NAME = "nimbus_kb"
+COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION", f"kb-{DATA_DIR.name}")
 TOP_K = 3  # minimalistic retrieval, as in the demo: top-3, no re-ranking
 
 # --- Paths -------------------------------------------------------------------
-DATA_DIR = ROOT / "data"
 KNOWLEDGE_BASE_PATH = DATA_DIR / "knowledge_base.json"
 QUESTIONS_PATH = DATA_DIR / "questions.json"
 PROMPTS_DIR = ROOT / "prompts"
