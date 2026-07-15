@@ -149,7 +149,8 @@ def get_config():
         "production_model": config.PROD_MODEL,
         "judge_model": config.JUDGE_MODEL,
         "region": config.AWS_REGION,
-        "dataset": config.DATA_DIR.name,
+        "dataset": config.DATASET_ID,
+        "dataset_label": config.DATASETS[config.DATASET_ID]["label"],
         "prompts": {
             "baseline": config.BASELINE_PROMPT_PATH.exists(),
             "optimized": config.OPTIMIZED_PROMPT_PATH.exists(),
@@ -219,6 +220,90 @@ def init_assistant():
     }
 
 
+# --- Datasets ------------------------------------------------------------------
+
+
+def _dataset_entries() -> list[dict]:
+    entries = []
+    for ds_id, info in config.DATASETS.items():
+        questions_path = info["dir"] / "questions.json"
+        available = (info["dir"] / "knowledge_base.json").exists() and questions_path.exists()
+        n_questions, golden = None, False
+        if available:
+            questions = json.loads(questions_path.read_text(encoding="utf-8"))
+            n_questions = len(questions)
+            golden = any(q.get("answer") for q in questions)
+        entries.append(
+            {
+                "id": ds_id,
+                "label": info["label"],
+                "available": available,
+                "questions": n_questions,
+                "golden": golden,
+                "active": ds_id == config.DATASET_ID,
+            }
+        )
+    return entries
+
+
+@app.get("/api/datasets")
+def list_datasets():
+    return {"active": config.DATASET_ID, "datasets": _dataset_entries()}
+
+
+class DatasetRequest(BaseModel):
+    id: str
+
+
+@app.post("/api/dataset")
+def switch_dataset(req: DatasetRequest):
+    """Switch the active dataset; fetches the golden set on first use."""
+    global _pipeline
+    if req.id not in config.DATASETS:
+        raise HTTPException(status_code=400, detail=f"Unknown dataset: {req.id}")
+    with _opt_lock:
+        if _opt_job.get("status") == "running":
+            raise HTTPException(status_code=409, detail="Cannot switch datasets while an optimisation is running")
+
+    target_dir = config.DATASETS[req.id]["dir"]
+    if not (target_dir / "knowledge_base.json").exists():
+        if req.id != "golden":
+            raise HTTPException(status_code=400, detail=f"Dataset files missing for '{req.id}'")
+        logger.info("Golden dataset not on disk — fetching from Hugging Face...")
+        from indexing.fetch_hf_golden import fetch_golden
+
+        try:
+            fetch_golden(target_dir)
+        except Exception as exc:
+            logger.exception("Golden dataset fetch failed")
+            raise HTTPException(status_code=502, detail=f"Dataset fetch failed: {type(exc).__name__}: {exc}") from exc
+
+    previous = config.DATASET_ID
+    config.set_dataset(req.id)
+    _pipeline = None  # rebuild against the new Chroma collection
+    try:
+        ensure_index()
+    except Exception as exc:
+        config.set_dataset(previous)
+        _pipeline = None
+        logger.exception("Indexing the new dataset failed; reverted to %s", previous)
+        raise HTTPException(status_code=502, detail=f"Indexing failed: {type(exc).__name__}: {exc}") from exc
+
+    logger.info("Active dataset switched to %s", req.id)
+    return {"status": "ok", "active": config.DATASET_ID, "datasets": _dataset_entries()}
+
+
+def gold_answer_for(question: str) -> str | None:
+    """Look up the gold reference answer when the asked question is from the dataset."""
+    try:
+        for q in json.loads(config.QUESTIONS_PATH.read_text(encoding="utf-8")):
+            if q.get("answer") and q["question"].strip().lower() == question.strip().lower():
+                return q["answer"]
+    except FileNotFoundError:
+        pass
+    return None
+
+
 # --- Prompt optimisation as a background job ----------------------------------
 # GEPA takes many minutes and hundreds of model calls, so it runs in a
 # daemon thread; the UI polls /api/optimize/status for live progress.
@@ -231,7 +316,7 @@ def _fresh_job(budget: str) -> dict:
     return {
         "status": "running",
         "budget": budget,
-        "dataset": config.DATA_DIR.name,
+        "dataset": config.DATASET_ID,
         "started_at": time.time(),
         "metric_calls": 0,
         "last_scores": None,
@@ -353,7 +438,10 @@ def ask(req: AskRequest):
         from rag.retrieval import format_context
 
         try:
-            payload["scores"] = judge_answer(req.question, format_context(documents), reply)
+            payload["scores"] = judge_answer(
+                req.question, format_context(documents), reply,
+                gold_answer=gold_answer_for(req.question),
+            )
         except Exception as exc:
             logger.exception("Judge call failed")
             payload["scores"] = {"error": f"Judge call failed: {exc}"}

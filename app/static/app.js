@@ -65,6 +65,89 @@ async function refreshPromptPreview() {
   }
 }
 
+// --- Datasets --------------------------------------------------------------
+
+function renderSampleChips(questions) {
+  $("sample-chips").replaceChildren(
+    ...questions.slice(0, 15).map((q) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip" +
+        (q.note === "not_in_kb" ? " chip--trap" : q.answer ? " chip--golden" : "");
+      chip.textContent = q.question;
+      chip.title = q.note === "not_in_kb"
+        ? "Hallucination trap: not covered by the knowledge base"
+        : q.answer
+          ? `Gold answer: ${q.answer}`
+          : "Answerable from the knowledge base";
+      chip.addEventListener("click", () => { $("question").value = q.question; });
+      return chip;
+    })
+  );
+}
+
+function renderDatasets(data) {
+  const toggle = $("dataset-toggle");
+  const legend = toggle.querySelector("legend");
+  toggle.replaceChildren(legend,
+    ...data.datasets.map((ds) => {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "dataset";
+      input.value = ds.id;
+      input.checked = ds.active;
+      input.addEventListener("change", () => switchDataset(ds));
+      const span = document.createElement("span");
+      span.textContent = ds.label;
+      label.append(input, span);
+      return label;
+    })
+  );
+  const active = data.datasets.find((d) => d.active);
+  $("dataset-hint").textContent = active
+    ? (active.golden
+        ? `${active.questions} questions with gold answers — the correctness metric is active. Green chips show their reference answer on hover.`
+        : `${active.questions ?? "?"} label-free questions — scoring uses relevancy + groundedness only.`)
+    : "";
+}
+
+async function refreshDatasets() {
+  try {
+    renderDatasets(await fetchJSON("/api/datasets"));
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function switchDataset(ds) {
+  if (!ds.available && !confirm(
+    `First use of "${ds.label}" downloads the dataset from Hugging Face and ` +
+    "indexes ~3,000 passages. This can take a few minutes. Continue?"
+  )) { await refreshDatasets(); return; }
+
+  $("spinner-text").textContent = ds.available
+    ? "Switching dataset and rebuilding the index…"
+    : "Downloading the golden dataset and building the index…";
+  $("spinner").hidden = false;
+  try {
+    await fetchJSON("/api/dataset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: ds.id }),
+    }, 600000);
+    const cfg = await fetchJSON("/api/config");
+    renderSampleChips(cfg.sample_questions);
+    await refreshDatasets();
+    $("answer-panel").hidden = true;
+  } catch (err) {
+    alert(err.message);
+    await refreshDatasets(); // snap the radio back to the server's state
+  } finally {
+    $("spinner").hidden = true;
+  }
+}
+
 function scoreChip(label, value) {
   const cls = value >= 0.75 ? "good" : value >= 0.4 ? "mid" : "bad";
   const chip = document.createElement("span");
@@ -82,10 +165,11 @@ function renderAnswer(data) {
   const scoresEl = $("scores");
   if (data.scores && !data.scores.error) {
     scoresEl.hidden = false;
-    const chips = $("score-chips");
-    chips.replaceChildren(
-      scoreChip("Relevancy", data.scores.relevancy),
-      scoreChip("Groundedness", data.scores.groundedness)
+    const labels = { relevancy: "Relevancy", groundedness: "Groundedness", correctness: "Correctness" };
+    $("score-chips").replaceChildren(
+      ...Object.entries(labels)
+        .filter(([key]) => data.scores[key] != null)
+        .map(([key, label]) => scoreChip(label, data.scores[key]))
     );
     $("score-feedback").textContent = data.scores.feedback;
   } else if (data.scores && data.scores.error) {
@@ -223,19 +307,7 @@ async function init() {
       opt.title = "Run `python -m optimisation.run_gepa` to generate the optimised prompt";
     }
 
-    $("sample-chips").replaceChildren(
-      ...cfg.sample_questions.slice(0, 15).map((q) => {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "chip" + (q.note === "not_in_kb" ? " chip--trap" : "");
-        chip.textContent = q.question;
-        chip.title = q.note === "not_in_kb"
-          ? "Hallucination trap: not covered by the knowledge base"
-          : "Answerable from the knowledge base";
-        chip.addEventListener("click", () => { $("question").value = q.question; });
-        return chip;
-      })
-    );
+    renderSampleChips(cfg.sample_questions);
   } catch (err) {
     $("model-badge").textContent = "offline";
     console.error(err);
@@ -255,6 +327,7 @@ async function init() {
   $("init-btn").addEventListener("click", initialiseAssistant);
   $("opt-btn").addEventListener("click", startOptimisation);
   $("ask-btn").addEventListener("click", ask);
+  refreshDatasets();
   pollOptStatus(); // pick up a run already in progress (e.g. page reload)
   $("question").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask();

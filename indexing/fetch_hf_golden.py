@@ -37,12 +37,85 @@ def fetch_rows(dataset: str, config_name: str, split: str, limit: int | None):
              "offset": offset, "length": length}
         )
         with urllib.request.urlopen(f"{API}?{params}", timeout=60) as response:
-            batch = json.load(response)["rows"]
+            payload = json.load(response)
+        if "rows" not in payload:
+            raise RuntimeError(
+                f"datasets-server returned no rows for {dataset} "
+                f"(config={config_name}, split={split}): {payload}"
+            )
+        batch = payload["rows"]
         rows.extend(r["row"] for r in batch)
         if len(batch) < length:
             break  # reached the end of the split
         offset += len(batch)
     return rows
+
+
+def _resolve_column(rows: list, preferred: str, fallbacks: tuple[str, ...]) -> str:
+    """Use the preferred column if present; otherwise fall back gracefully."""
+    if not rows:
+        raise RuntimeError("Dataset returned no rows")
+    sample = rows[0]
+    for name in (preferred, *fallbacks):
+        if isinstance(sample.get(name), str):
+            return name
+    for name, value in sample.items():  # last resort: first string column
+        if isinstance(value, str):
+            return name
+    raise RuntimeError(f"No text column found; available columns: {list(sample)}")
+
+
+def fetch_golden(
+    out_dir: Path,
+    dataset: str = "rag-datasets/rag-mini-wikipedia",
+    corpus_config: str = "text-corpus",
+    corpus_split: str = "passages",
+    corpus_column: str = "passage",
+    qa_config: str = "question-answer",
+    qa_split: str = "test",
+    question_column: str = "question",
+    answer_column: str = "answer",
+    num_passages: int = 0,
+    num_questions: int = 30,
+) -> tuple[int, int]:
+    """Download corpus + QA pairs and write knowledge_base.json / questions.json.
+
+    Returns (number of passages, number of questions). Also used by the web
+    app's dataset switcher.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Fetching corpus from {dataset} ({corpus_config}/{corpus_split})...")
+    corpus_rows = fetch_rows(dataset, corpus_config, corpus_split, num_passages or None)
+    corpus_column = _resolve_column(corpus_rows, corpus_column, ("passage", "text", "content"))
+    knowledge_base = [
+        {"id": f"hf-{i}", "content": str(row[corpus_column]).strip()}
+        for i, row in enumerate(corpus_rows)
+        if str(row.get(corpus_column, "")).strip()
+    ]
+    (out_dir / "knowledge_base.json").write_text(
+        json.dumps(knowledge_base, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"  {len(knowledge_base)} passages -> {out_dir / 'knowledge_base.json'}")
+
+    print(f"Fetching QA pairs ({qa_config}/{qa_split})...")
+    qa_rows = fetch_rows(dataset, qa_config, qa_split, num_questions)
+    question_column = _resolve_column(qa_rows, question_column, ("question", "query"))
+    answer_column = _resolve_column(qa_rows, answer_column, ("answer", "answers", "response"))
+    questions = [
+        {
+            "question": str(row[question_column]).strip(),
+            "answer": str(row[answer_column]).strip(),
+            "note": "golden",
+        }
+        for row in qa_rows
+        if str(row.get(question_column, "")).strip()
+    ]
+    (out_dir / "questions.json").write_text(
+        json.dumps(questions, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"  {len(questions)} questions -> {out_dir / 'questions.json'}")
+    return len(knowledge_base), len(questions)
 
 
 def main() -> None:
@@ -59,43 +132,25 @@ def main() -> None:
                         help="0 = the full corpus (recommended: subsetting the "
                              "corpus orphans questions whose evidence is cut)")
     parser.add_argument("--num-questions", type=int, default=30)
-    parser.add_argument("--out", default=str(config.ROOT / "data" / "hf"))
+    parser.add_argument("--out", default=str(config.DATASETS["golden"]["dir"]))
     args = parser.parse_args()
 
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"Fetching corpus from {args.dataset} ({args.corpus_config}/{args.corpus_split})...")
-    corpus_rows = fetch_rows(args.dataset, args.corpus_config, args.corpus_split,
-                             args.num_passages or None)
-    knowledge_base = [
-        {"id": f"hf-{i}", "content": str(row[args.corpus_column]).strip()}
-        for i, row in enumerate(corpus_rows)
-        if str(row.get(args.corpus_column, "")).strip()
-    ]
-    (out_dir / "knowledge_base.json").write_text(
-        json.dumps(knowledge_base, indent=2, ensure_ascii=False), encoding="utf-8"
+    fetch_golden(
+        Path(args.out),
+        dataset=args.dataset,
+        corpus_config=args.corpus_config,
+        corpus_split=args.corpus_split,
+        corpus_column=args.corpus_column,
+        qa_config=args.qa_config,
+        qa_split=args.qa_split,
+        question_column=args.question_column,
+        answer_column=args.answer_column,
+        num_passages=args.num_passages,
+        num_questions=args.num_questions,
     )
-    print(f"  {len(knowledge_base)} passages -> {out_dir / 'knowledge_base.json'}")
-
-    print(f"Fetching QA pairs ({args.qa_config}/{args.qa_split})...")
-    qa_rows = fetch_rows(args.dataset, args.qa_config, args.qa_split, args.num_questions)
-    questions = [
-        {
-            "question": str(row[args.question_column]).strip(),
-            "answer": str(row[args.answer_column]).strip(),
-            "note": "golden",
-        }
-        for row in qa_rows
-        if str(row.get(args.question_column, "")).strip()
-    ]
-    (out_dir / "questions.json").write_text(
-        json.dumps(questions, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-    print(f"  {len(questions)} questions -> {out_dir / 'questions.json'}")
 
     print("\nNext steps:")
-    print(f"  export DATASET_DIR={out_dir.relative_to(config.ROOT)}")
+    print("  export DATASET=golden")
     print("  python -m indexing.build_index")
     print("  python -m optimisation.run_gepa   # now also optimises for correctness")
 

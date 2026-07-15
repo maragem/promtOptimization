@@ -71,6 +71,14 @@
       <h2 class="card__title" id="ask-title">Ask a question</h2>
 
       <div class="field">
+        <fieldset class="segmented" id="dataset-toggle">
+          <legend class="field__label">Dataset</legend>
+          <!-- options injected from /api/datasets -->
+        </fieldset>
+        <p class="field__hint" id="dataset-hint"></p>
+      </div>
+
+      <div class="field">
         <label class="field__label" for="question">Customer question</label>
         <textarea id="question" rows="3" placeholder="e.g. How much does the Growth plan cost?"></textarea>
       </div>

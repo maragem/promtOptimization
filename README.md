@@ -148,14 +148,22 @@ calls; DSPy caches LLM responses on disk, so re-runs are cheap. Bump to
 
 ## Golden datasets (Hugging Face)
 
-The stack is dataset-agnostic: `DATASET_DIR` selects which corpus + question
+The stack is dataset-agnostic: the active dataset (env var `DATASET`, or the UI toggle) selects which corpus + question
 set everything (indexing, optimisation, evaluation, UI) runs on. The default
 is the label-free synthetic Nimbus KB. To use a golden dataset with reference
 answers instead:
 
+**From the UI:** the ask panel has a **Dataset** toggle — switching to
+"Wikipedia golden (Hugging Face)" downloads the dataset on first use,
+rebuilds the index, and turns the sample chips green (hover shows the gold
+answer). With the judge checkbox on, a third **Correctness** score chip
+appears for golden questions.
+
+**From the CLI:**
+
 ```bash
 python -m indexing.fetch_hf_golden          # rag-datasets/rag-mini-wikipedia
-export DATASET_DIR=data/hf
+export DATASET=golden
 python -m indexing.build_index
 python -m optimisation.run_gepa
 ```

@@ -87,6 +87,9 @@ textarea {
 }
 textarea:focus { outline: 2px solid var(--ec-blue); outline-offset: 0; }
 
+.field__hint { font-size: 12.5px; color: var(--ec-text-muted); margin: 6px 0 0; }
+.chip--golden { background: #eef7ee; color: var(--ec-green); }
+
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   font-size: 12.5px; padding: 4px 10px; cursor: pointer;

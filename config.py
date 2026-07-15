@@ -33,22 +33,44 @@ JUDGE_MODEL = os.environ.get("BEDROCK_JUDGE_MODEL", "eu.anthropic.claude-opus-4-
 # Leave unset for open access during local development.
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
-# --- Dataset -----------------------------------------------------------------
-# DATASET_DIR selects the corpus + questions the whole stack runs on:
-#   data     -> synthetic Nimbus Desk KB, label-free questions (default)
-#   data/hf  -> golden dataset fetched from Hugging Face
-#               (python -m indexing.fetch_hf_golden), questions carry gold
-#               answers that enable the extra correctness metric.
-DATA_DIR = ROOT / os.environ.get("DATASET_DIR", "data")
+# --- Datasets ----------------------------------------------------------------
+# The whole stack (index, optimisation, evaluation, UI) runs on the active
+# dataset. "nimbus" is the synthetic label-free KB; "golden" is a corpus +
+# QA-with-gold-answers set fetched from Hugging Face (fetchable from the UI
+# or via `python -m indexing.fetch_hf_golden`). Gold answers enable the
+# extra correctness metric automatically.
+DATASETS = {
+    "nimbus": {"dir": ROOT / "data", "label": "Nimbus Desk (synthetic, label-free)"},
+    "golden": {"dir": ROOT / "data" / "hf", "label": "Wikipedia golden (Hugging Face)"},
+}
+DEFAULT_DATASET = os.environ.get("DATASET", "nimbus")
+
+# Mutable at runtime via set_dataset() (used by the UI dataset switcher).
+DATASET_ID: str
+DATA_DIR: Path
+KNOWLEDGE_BASE_PATH: Path
+QUESTIONS_PATH: Path
+COLLECTION_NAME: str
+
+
+def set_dataset(dataset_id: str) -> None:
+    global DATASET_ID, DATA_DIR, KNOWLEDGE_BASE_PATH, QUESTIONS_PATH, COLLECTION_NAME
+    if dataset_id not in DATASETS:
+        raise ValueError(f"Unknown dataset: {dataset_id}")
+    DATASET_ID = dataset_id
+    DATA_DIR = DATASETS[dataset_id]["dir"]
+    KNOWLEDGE_BASE_PATH = DATA_DIR / "knowledge_base.json"
+    QUESTIONS_PATH = DATA_DIR / "questions.json"
+    COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION") or f"kb-{dataset_id}"
+
+
+set_dataset(DEFAULT_DATASET if DEFAULT_DATASET in DATASETS else "nimbus")
 
 # --- Retrieval ---------------------------------------------------------------
 CHROMA_PATH = str(ROOT / ".chroma")
-COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION", f"kb-{DATA_DIR.name}")
 TOP_K = 3  # minimalistic retrieval, as in the demo: top-3, no re-ranking
 
 # --- Paths -------------------------------------------------------------------
-KNOWLEDGE_BASE_PATH = DATA_DIR / "knowledge_base.json"
-QUESTIONS_PATH = DATA_DIR / "questions.json"
 PROMPTS_DIR = ROOT / "prompts"
 BASELINE_PROMPT_PATH = PROMPTS_DIR / "baseline.txt"
 OPTIMIZED_PROMPT_PATH = PROMPTS_DIR / "optimized.txt"
