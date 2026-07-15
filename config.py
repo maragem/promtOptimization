@@ -42,6 +42,7 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 DATASETS = {
     "nimbus": {"dir": ROOT / "data", "label": "Nimbus Desk (synthetic, label-free)"},
     "golden": {"dir": ROOT / "data" / "hf", "label": "Wikipedia golden (Hugging Face)"},
+    "hotpotqa": {"dir": ROOT / "data" / "hotpotqa", "label": "HotpotQA multi-hop (golden)"},
 }
 DEFAULT_DATASET = os.environ.get("DATASET", "nimbus")
 

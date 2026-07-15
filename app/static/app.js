@@ -123,7 +123,7 @@ async function refreshDatasets() {
 async function switchDataset(ds) {
   if (!ds.available && !confirm(
     `First use of "${ds.label}" downloads the dataset from Hugging Face and ` +
-    "indexes ~3,000 passages. This can take a few minutes. Continue?"
+    "builds the index. This can take a few minutes. Continue?"
   )) { await refreshDatasets(); return; }
 
   $("spinner-text").textContent = ds.available

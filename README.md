@@ -159,11 +159,19 @@ rebuilds the index, and turns the sample chips green (hover shows the gold
 answer). With the judge checkbox on, a third **Correctness** score chip
 appears for golden questions.
 
+Two golden datasets are built in:
+
+| Dataset | Source | Character |
+|---|---|---|
+| Wikipedia golden | `rag-datasets/rag-mini-wikipedia` | Single-hop factoid QA; corpus of ~3,200 passages |
+| HotpotQA | [hotpotqa.github.io](https://hotpotqa.github.io/) via `hotpotqa/hotpot_qa` (distractor config) | **Multi-hop**: each answer needs facts from two paragraphs. The KB is built from the sampled questions' own evidence + distractor paragraphs. Deliberately hard for the demo's naive top-3 retrieval — expect lower scores; it shows where prompt optimisation stops and retrieval quality starts. |
+
 **From the CLI:**
 
 ```bash
 python -m indexing.fetch_hf_golden          # rag-datasets/rag-mini-wikipedia
-export DATASET=golden
+# or: python -m indexing.fetch_hotpotqa     # HotpotQA (multi-hop)
+export DATASET=golden                        # or: hotpotqa
 python -m indexing.build_index
 python -m optimisation.run_gepa
 ```

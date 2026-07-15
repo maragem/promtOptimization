@@ -108,7 +108,8 @@ textarea:focus { outline: 2px solid var(--ec-blue); outline-offset: 0; }
   border: 1px solid var(--ec-blue); color: var(--ec-blue); background: #fff;
 }
 .segmented label:first-of-type span { border-radius: var(--radius) 0 0 var(--radius); }
-.segmented label:last-of-type span { border-radius: 0 var(--radius) var(--radius) 0; border-left: 0; }
+.segmented label:last-of-type span { border-radius: 0 var(--radius) var(--radius) 0; }
+.segmented label:not(:first-of-type) span { border-left: 0; }
 .segmented input:checked + span { background: var(--ec-blue); color: #fff; }
 .segmented label.disabled span { opacity: 0.45; cursor: not-allowed; }
 

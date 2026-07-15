@@ -251,6 +251,20 @@ def list_datasets():
     return {"active": config.DATASET_ID, "datasets": _dataset_entries()}
 
 
+def _fetch_dataset_files(ds_id: str, target_dir: Path) -> None:
+    """Download a fetchable dataset on first use."""
+    if ds_id == "golden":
+        from indexing.fetch_hf_golden import fetch_golden
+
+        fetch_golden(target_dir)
+    elif ds_id == "hotpotqa":
+        from indexing.fetch_hotpotqa import fetch_hotpotqa
+
+        fetch_hotpotqa(target_dir)
+    else:
+        raise HTTPException(status_code=400, detail=f"Dataset files missing for '{ds_id}' and it is not fetchable")
+
+
 class DatasetRequest(BaseModel):
     id: str
 
@@ -267,15 +281,13 @@ def switch_dataset(req: DatasetRequest):
 
     target_dir = config.DATASETS[req.id]["dir"]
     if not (target_dir / "knowledge_base.json").exists():
-        if req.id != "golden":
-            raise HTTPException(status_code=400, detail=f"Dataset files missing for '{req.id}'")
-        logger.info("Golden dataset not on disk — fetching from Hugging Face...")
-        from indexing.fetch_hf_golden import fetch_golden
-
+        logger.info("Dataset '%s' not on disk — fetching from Hugging Face...", req.id)
         try:
-            fetch_golden(target_dir)
+            _fetch_dataset_files(req.id, target_dir)
+        except HTTPException:
+            raise
         except Exception as exc:
-            logger.exception("Golden dataset fetch failed")
+            logger.exception("Dataset fetch failed")
             raise HTTPException(status_code=502, detail=f"Dataset fetch failed: {type(exc).__name__}: {exc}") from exc
 
     previous = config.DATASET_ID
