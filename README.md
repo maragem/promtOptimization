@@ -159,6 +159,23 @@ Keep the weak-production / strong-judge pairing when picking GPT@EC models.
 
 ## Troubleshooting
 
+- **The UI hangs on "Calling the model…" / no `POST /api/ask` in the logs** —
+  the Bedrock call itself is failing or blocked. Open
+  `https://<your-app>/api/test-model` (while logged in): it makes one tiny
+  Bedrock call and returns either the latency or the exact boto3 error.
+  Typical fixes:
+  - `ValidationException` mentioning on-demand throughput or an unknown
+    model → your account serves Claude via an inference profile; set
+    `BEDROCK_PROD_MODEL`/`BEDROCK_JUDGE_MODEL` to the region-prefixed ID
+    shown in the Bedrock console (e.g. `eu.anthropic.…` / `us.anthropic.…`).
+  - `AccessDeniedException` → enable the model in **Bedrock console →
+    Model access** for that region, or fix `AWS_REGION`.
+  - `NoCredentialsError` / `UnrecognizedClientException` → the
+    `AWS_BEARER_TOKEN_BEDROCK` variable is missing or wrong on Railway.
+  The Bedrock client now uses tight timeouts (10 s connect / 90 s read,
+  2 attempts), so errors surface in the logs within seconds instead of
+  hanging for minutes.
+
 - **Validation error about `temperature`/`top_p` on the judge model** — newer
   Claude models (Opus 4.7+, Sonnet 5) reject sampling parameters. `config.py`
   sets `litellm.drop_params = True` to strip them; if your LiteLLM version

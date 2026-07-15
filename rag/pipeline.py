@@ -35,9 +35,17 @@ def build_pipeline() -> Pipeline:
     )
     # Auth: AmazonBedrockChatGenerator uses boto3, which reads the Bedrock
     # API key from the AWS_BEARER_TOKEN_BEDROCK env var (boto3 >= 1.39).
+    # Tight timeouts + few retries: a bad model ID / region / missing model
+    # access should surface as an error in seconds, not hang for minutes
+    # behind boto3's default 60s-per-attempt retry loop.
     llm = AmazonBedrockChatGenerator(
         model=config.PROD_MODEL,
         generation_kwargs={"maxTokens": 1024},
+        boto3_config={
+            "connect_timeout": 10,
+            "read_timeout": 90,
+            "retries": {"max_attempts": 2, "mode": "standard"},
+        },
     )
 
     pipe = Pipeline()

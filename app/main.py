@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 
 import config
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
 logger = logging.getLogger("app")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -165,6 +167,37 @@ def get_prompt(variant: str):
     return {"variant": variant, "text": load_prompt(variant)}
 
 
+@app.get("/api/test-model")
+def test_model():
+    """Diagnostic: one tiny Bedrock call, returns latency or the real error."""
+    from haystack.dataclasses import ChatMessage
+
+    pipe = get_pipeline()
+    llm = pipe.get_component("llm")
+    start = time.perf_counter()
+    try:
+        result = llm.run(messages=[ChatMessage.from_user("Reply with the single word: pong")])
+        return {
+            "status": "ok",
+            "model": config.PROD_MODEL,
+            "region": config.AWS_REGION,
+            "latency_s": round(time.perf_counter() - start, 2),
+            "reply": result["replies"][0].text,
+        }
+    except Exception as exc:
+        logger.exception("Model connectivity test failed")
+        return JSONResponse(
+            status_code=502,
+            content={
+                "status": "error",
+                "model": config.PROD_MODEL,
+                "region": config.AWS_REGION,
+                "latency_s": round(time.perf_counter() - start, 2),
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+
+
 @app.post("/api/ask")
 def ask(req: AskRequest):
     ensure_index()
@@ -172,11 +205,14 @@ def ask(req: AskRequest):
 
     from rag.pipeline import answer
 
+    logger.info("ask: start (prompt=%s, model=%s, region=%s)", req.prompt, config.PROD_MODEL, config.AWS_REGION)
+    start = time.perf_counter()
     try:
         reply, documents = answer(get_pipeline(), req.question, system_prompt)
     except Exception as exc:
-        logger.exception("Pipeline call failed")
-        raise HTTPException(status_code=502, detail=f"Model call failed: {exc}") from exc
+        logger.exception("Pipeline call failed after %.1fs", time.perf_counter() - start)
+        raise HTTPException(status_code=502, detail=f"Model call failed: {type(exc).__name__}: {exc}") from exc
+    logger.info("ask: model replied in %.1fs", time.perf_counter() - start)
 
     payload = {
         "answer": reply,

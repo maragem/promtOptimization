@@ -2,8 +2,24 @@
 
 const $ = (id) => document.getElementById(id);
 
-async function fetchJSON(url, options) {
-  const res = await fetch(url, options);
+async function fetchJSON(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(
+        `The request timed out after ${Math.round(timeoutMs / 1000)}s. ` +
+        "Check the server logs and try GET /api/test-model for a Bedrock connectivity diagnosis."
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.status === 401) { window.location.href = "/login.html"; return {}; }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail || `Request failed (${res.status})`);
   return body;
@@ -85,7 +101,7 @@ async function ask() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, prompt: selectedPrompt(), judge }),
-    });
+    }, 180000);
     renderAnswer(data);
   } catch (err) {
     alert(err.message);
