@@ -43,101 +43,138 @@
         <span>GPT@EC</span> <span class="breadcrumb__sep">›</span>
         <span aria-current="page">Prompt optimisation</span>
       </nav>
-      <h1 class="page-header__title">Nimbus Desk — RAG support assistant</h1>
+      <h1 class="page-header__title">RAG assistant — prompt optimisation workbench</h1>
       <p class="page-header__subtitle">
         Haystack retrieval-augmented generation with DSPy/GEPA-optimised prompts,
-        scored for answer relevancy and groundedness.
+        scored by LLM judges for relevancy, groundedness and correctness.
       </p>
     </div>
   </div>
 
-  <main class="container main-grid">
+  <main class="container main-col">
 
-    <!-- Init panel: nothing is loaded at startup -->
-    <section class="card init-card" id="init-panel" aria-labelledby="init-title">
-      <h2 class="card__title" id="init-title">Initialise the assistant</h2>
-      <p>
-        Nothing is loaded at startup. Initialisation downloads the embedding
-        model (first run only), builds the knowledge-base index, and makes one
-        test call to the LLM — so any configuration problem shows up here,
-        with the exact error, before you start asking questions.
-      </p>
-      <button class="btn btn--primary" id="init-btn">Load model &amp; build index</button>
-      <p class="init-status" id="init-status"></p>
-    </section>
+    <ol class="stepper">
 
-    <!-- Ask panel -->
-    <section class="card" aria-labelledby="ask-title">
-      <h2 class="card__title" id="ask-title">Ask a question</h2>
+      <!-- Step 1: dataset -->
+      <li class="step" id="step-dataset">
+        <header class="step__header">
+          <span class="step__num">1</span>
+          <div class="step__heading">
+            <h2>Choose a dataset</h2>
+            <p class="step__summary" id="summary-dataset"></p>
+          </div>
+        </header>
+        <div class="step__body">
+          <div class="dataset-cards" id="dataset-cards"></div>
+          <p class="field__hint" id="dataset-hint"></p>
+        </div>
+      </li>
 
-      <div class="field">
-        <fieldset class="segmented" id="dataset-toggle">
-          <legend class="field__label">Dataset</legend>
-          <!-- options injected from /api/datasets -->
-        </fieldset>
-        <p class="field__hint" id="dataset-hint"></p>
-      </div>
+      <!-- Step 2: system prompt -->
+      <li class="step" id="step-prompt">
+        <header class="step__header">
+          <span class="step__num">2</span>
+          <div class="step__heading">
+            <h2>Load the system prompt</h2>
+            <p class="step__summary" id="summary-prompt"></p>
+          </div>
+        </header>
+        <div class="step__body">
+          <p class="field__hint" style="margin-bottom:10px">
+            Each dataset has its own prompts. The baseline is deliberately naive;
+            the optimised one appears after a GEPA run for this dataset.
+          </p>
+          <fieldset class="segmented" id="prompt-toggle">
+            <legend class="field__label">Prompt variant</legend>
+            <label><input type="radio" name="prompt" value="baseline" checked /><span>Baseline</span></label>
+            <label id="optimized-option"><input type="radio" name="prompt" value="optimized" /><span>Optimised (GEPA)</span></label>
+          </fieldset>
+          <pre class="prompt-view" id="prompt-view">…</pre>
+          <button class="btn btn--primary" id="prompt-continue">Use this prompt</button>
+        </div>
+      </li>
 
-      <div class="field">
-        <label class="field__label" for="question">Customer question</label>
-        <textarea id="question" rows="3" placeholder="e.g. How much does the Growth plan cost?"></textarea>
-      </div>
+      <!-- Step 3: initialise models -->
+      <li class="step" id="step-init">
+        <header class="step__header">
+          <span class="step__num">3</span>
+          <div class="step__heading">
+            <h2>Initialise the models</h2>
+            <p class="step__summary" id="summary-init"></p>
+          </div>
+        </header>
+        <div class="step__body">
+          <p class="field__hint" style="margin-bottom:12px">
+            Verifies the knowledge-base index and makes one test call to the LLM
+            on Bedrock — any configuration problem shows up here with the exact
+            error, before you start asking questions.
+          </p>
+          <button class="btn btn--primary" id="init-btn">Initialise &amp; test the model</button>
+          <p class="init-status" id="init-status"></p>
+        </div>
+      </li>
 
-      <div class="field">
-        <span class="field__label">Sample questions</span>
-        <div class="chips" id="sample-chips"></div>
-      </div>
+      <!-- Step 4: ask -->
+      <li class="step" id="step-ask">
+        <header class="step__header">
+          <span class="step__num">4</span>
+          <div class="step__heading">
+            <h2>Ask questions</h2>
+            <p class="step__summary" id="summary-ask"></p>
+          </div>
+        </header>
+        <div class="step__body">
+          <div class="field">
+            <label class="field__label" for="question">Question</label>
+            <textarea id="question" rows="3" placeholder="Type a question or pick a sample below"></textarea>
+          </div>
 
-      <div class="controls">
-        <fieldset class="segmented" id="prompt-toggle">
-          <legend class="field__label">System prompt</legend>
-          <label><input type="radio" name="prompt" value="baseline" checked /><span>Baseline</span></label>
-          <label id="optimized-option"><input type="radio" name="prompt" value="optimized" /><span>Optimised (GEPA)</span></label>
-        </fieldset>
+          <div class="field">
+            <span class="field__label">Sample questions</span>
+            <div class="chips" id="sample-chips"></div>
+          </div>
 
-        <label class="checkbox">
-          <input type="checkbox" id="judge-toggle" />
-          <span>Score with LLM judges<br/><small id="judge-model-note"></small></span>
-        </label>
-      </div>
+          <div class="controls">
+            <label class="checkbox">
+              <input type="checkbox" id="judge-toggle" />
+              <span>Score with LLM judges<br/><small id="judge-model-note"></small></span>
+            </label>
+            <button class="btn btn--primary" id="ask-btn">Ask the assistant</button>
+          </div>
 
-      <button class="btn btn--primary" id="ask-btn" disabled title="Initialise the assistant first">Ask the assistant</button>
-      <details class="prompt-preview">
-        <summary>View the active system prompt</summary>
-        <pre id="prompt-text">…</pre>
-      </details>
-    </section>
+          <div id="answer-panel" hidden>
+            <h3 class="section-label">Assistant answer</h3>
+            <div class="answer__meta" id="answer-meta"></div>
+            <div class="answer__text" id="answer-text"></div>
 
-    <!-- Answer panel -->
-    <section class="card" aria-labelledby="answer-title" id="answer-panel" hidden>
-      <h2 class="card__title" id="answer-title">Assistant answer</h2>
-      <div class="answer__meta" id="answer-meta"></div>
-      <div class="answer__text" id="answer-text"></div>
+            <div class="scores" id="scores" hidden>
+              <h3 class="section-label">Judge scores</h3>
+              <div class="scores__chips" id="score-chips"></div>
+              <pre class="scores__feedback" id="score-feedback"></pre>
+            </div>
 
-      <div class="scores" id="scores" hidden>
-        <h3 class="section-label">Judge scores</h3>
-        <div class="scores__chips" id="score-chips"></div>
-        <pre class="scores__feedback" id="score-feedback"></pre>
-      </div>
+            <div class="context">
+              <h3 class="section-label">Retrieved context (top-3)</h3>
+              <div id="context-docs"></div>
+            </div>
+          </div>
+        </div>
+      </li>
 
-      <div class="context">
-        <h3 class="section-label">Retrieved context (top-3)</h3>
-        <div id="context-docs"></div>
-      </div>
-    </section>
+    </ol>
 
-    <!-- Optimisation panel -->
+    <!-- Optimisation panel (advanced, always visible) -->
     <section class="card init-card" id="opt-panel" aria-labelledby="opt-title">
       <h2 class="card__title" id="opt-title">Prompt optimisation (GEPA)</h2>
       <p>
-        Runs the genetic-Pareto optimisation on the server: the judges score a
-        batch of questions, the reflection model proposes child prompts, and
-        the Pareto rule keeps only non-regressing improvements. Expect
+        Runs the genetic-Pareto optimisation on the server for the
+        <strong>currently selected dataset</strong>: the judges score a batch of
+        questions, the reflection model proposes child prompts, and the Pareto
+        rule keeps only non-regressing improvements. Expect
         <strong>hundreds of model calls and 15&ndash;40 minutes</strong> on the
-        light budget. When it finishes, the winning prompt is saved and the
-        "Optimised (GEPA)" toggle activates.
-        <em>On Railway the file persists only until the next deploy — commit
-        <code>prompts/optimized.txt</code> to keep it.</em>
+        light budget. When it finishes, the optimised prompt becomes available
+        in step 2. <em>On Railway the file persists only until the next deploy —
+        commit <code>prompts/&lt;dataset&gt;/optimized.txt</code> to keep it.</em>
       </p>
       <button class="btn btn--primary" id="opt-btn">Run optimisation</button>
       <p class="init-status" id="opt-status"></p>
@@ -149,7 +186,7 @@
 
     <div class="spinner-overlay" id="spinner" hidden>
       <div class="spinner" role="status" aria-label="Loading"></div>
-      <p id="spinner-text">Calling the model…</p>
+      <p id="spinner-text">Working…</p>
     </div>
 
   </main>

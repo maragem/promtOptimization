@@ -57,8 +57,55 @@ body {
 .breadcrumb__sep { margin: 0 6px; }
 
 /* --- Layout / cards --------------------------------------------------- */
-.main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 28px 20px 48px; position: relative; }
-@media (max-width: 860px) { .main-grid { grid-template-columns: 1fr; } }
+.main-col { display: flex; flex-direction: column; gap: 22px; padding: 28px 20px 48px; position: relative; }
+
+/* --- Stepper ------------------------------------------------------------ */
+.stepper { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.step {
+  background: #fff; border: 1px solid var(--ec-grey-border);
+  border-left: 4px solid var(--ec-grey-border); border-radius: var(--radius);
+}
+.step--active { border-left-color: var(--ec-yellow); }
+.step--done { border-left-color: var(--ec-green); }
+.step--locked { opacity: 0.55; }
+.step__header { display: flex; align-items: center; gap: 14px; padding: 14px 20px; }
+.step--done .step__header { cursor: pointer; }
+.step--done .step__header:hover h2 { text-decoration: underline; }
+.step__num {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  background: var(--ec-grey-border); color: #fff; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.step--active .step__num { background: var(--ec-blue); }
+.step--done .step__num { background: var(--ec-green); }
+.step__heading h2 { margin: 0; font-size: 17px; color: var(--ec-blue-dark); }
+.step__summary { margin: 2px 0 0; font-size: 13px; color: var(--ec-text-muted); }
+.step__body { border-top: 1px solid var(--ec-grey-border); padding: 18px 22px 22px; display: none; }
+.step--active .step__body { display: block; }
+
+/* --- Dataset cards ------------------------------------------------------ */
+.dataset-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.ds-card {
+  font: inherit; text-align: left; cursor: pointer; background: #fff;
+  border: 1px solid var(--ec-grey-border); border-radius: var(--radius);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;
+}
+.ds-card:hover { border-color: var(--ec-blue); }
+.ds-card--selected { border: 2px solid var(--ec-blue); background: var(--ec-blue-light); padding: 13px 15px; }
+.ds-card h3 { margin: 0; font-size: 15px; color: var(--ec-blue-dark); }
+.ds-card p { margin: 0; font-size: 13px; color: var(--ec-text-muted); flex: 1; }
+.ds-card__badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.badge {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 2px 8px; border-radius: 999px; background: var(--ec-blue-light); color: var(--ec-blue-dark);
+}
+.badge--gold { background: #eef7ee; color: var(--ec-green); }
+.badge--warn { background: #fdf1e3; color: var(--ec-orange); }
+.prompt-view {
+  white-space: pre-wrap; background: var(--ec-grey-bg); padding: 12px 14px;
+  border-radius: var(--radius); border: 1px solid var(--ec-grey-border);
+  font-size: 13.5px; margin: 14px 0 16px;
+}
 
 .card {
   background: #fff; border: 1px solid var(--ec-grey-border);

@@ -47,15 +47,22 @@ DATASETS = {
 DEFAULT_DATASET = os.environ.get("DATASET", "nimbus")
 
 # Mutable at runtime via set_dataset() (used by the UI dataset switcher).
+# Prompts are per-dataset: prompts/<dataset>/baseline.txt|optimized.txt —
+# a Nimbus support persona makes no sense on Wikipedia questions.
 DATASET_ID: str
 DATA_DIR: Path
 KNOWLEDGE_BASE_PATH: Path
 QUESTIONS_PATH: Path
 COLLECTION_NAME: str
+BASELINE_PROMPT_PATH: Path
+OPTIMIZED_PROMPT_PATH: Path
+
+PROMPTS_DIR = ROOT / "prompts"
 
 
 def set_dataset(dataset_id: str) -> None:
     global DATASET_ID, DATA_DIR, KNOWLEDGE_BASE_PATH, QUESTIONS_PATH, COLLECTION_NAME
+    global BASELINE_PROMPT_PATH, OPTIMIZED_PROMPT_PATH
     if dataset_id not in DATASETS:
         raise ValueError(f"Unknown dataset: {dataset_id}")
     DATASET_ID = dataset_id
@@ -63,6 +70,8 @@ def set_dataset(dataset_id: str) -> None:
     KNOWLEDGE_BASE_PATH = DATA_DIR / "knowledge_base.json"
     QUESTIONS_PATH = DATA_DIR / "questions.json"
     COLLECTION_NAME = os.environ.get("CHROMA_COLLECTION") or f"kb-{dataset_id}"
+    BASELINE_PROMPT_PATH = PROMPTS_DIR / dataset_id / "baseline.txt"
+    OPTIMIZED_PROMPT_PATH = PROMPTS_DIR / dataset_id / "optimized.txt"
 
 
 set_dataset(DEFAULT_DATASET if DEFAULT_DATASET in DATASETS else "nimbus")
@@ -71,10 +80,6 @@ set_dataset(DEFAULT_DATASET if DEFAULT_DATASET in DATASETS else "nimbus")
 CHROMA_PATH = str(ROOT / ".chroma")
 TOP_K = 3  # minimalistic retrieval, as in the demo: top-3, no re-ranking
 
-# --- Paths -------------------------------------------------------------------
-PROMPTS_DIR = ROOT / "prompts"
-BASELINE_PROMPT_PATH = PROMPTS_DIR / "baseline.txt"
-OPTIMIZED_PROMPT_PATH = PROMPTS_DIR / "optimized.txt"
 RESULTS_DIR = ROOT / "results"
 
 

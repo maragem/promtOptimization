@@ -69,6 +69,7 @@ def run_optimisation(budget: str = "light", progress=None) -> str:
         optimized = optimizer.compile(program, trainset=trainset, valset=valset)
 
     optimized_prompt = optimized.generate.signature.instructions.strip()
+    config.OPTIMIZED_PROMPT_PATH.parent.mkdir(parents=True, exist_ok=True)
     config.OPTIMIZED_PROMPT_PATH.write_text(optimized_prompt + "\n", encoding="utf-8")
     return optimized_prompt
 

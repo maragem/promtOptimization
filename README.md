@@ -90,24 +90,32 @@ Reports land in `results/baseline.json` and `results/optimized.json`
 
 ## Web UI (eUI / EC look and feel)
 
-A FastAPI app in `app/` serves an EC-styled single-page interface for the
-assistant: ask questions (or click the sample chips — orange ones are
-hallucination traps), switch between the **baseline** and **GEPA-optimised**
-system prompt, inspect the retrieved context, and optionally score each
-answer live with the relevancy/groundedness judges.
+A FastAPI app in `app/` serves an EC-styled interface built as a 4-step
+wizard:
+
+1. **Choose a dataset** — card selection (Nimbus synthetic / Wikipedia golden
+   / HotpotQA multi-hop); fetchable datasets download on first use.
+2. **Load the system prompt** — prompts are per-dataset
+   (`prompts/<dataset>/baseline.txt` / `optimized.txt`); pick baseline or the
+   GEPA-optimised variant and review the text.
+3. **Initialise the models** — verifies the index and makes one test call to
+   Bedrock, surfacing any configuration error with the exact message.
+4. **Ask questions** — sample chips (orange = hallucination traps, green =
+   golden with reference answer on hover), retrieved-context accordion, and
+   optional live judge scoring (relevancy / groundedness / correctness).
+
+Completed steps stay visible with a summary; click a step header to go back.
+The GEPA optimisation panel below the wizard runs against the currently
+selected dataset and writes that dataset's `optimized.txt`.
 
 ```bash
 uvicorn app.main:app --reload
 # open http://localhost:8000
 ```
 
-Nothing is loaded at startup: after signing in, click **"Load model &
-build index"** — initialisation downloads the embedding model (first run),
-builds the Chroma index, and makes one test call to the LLM, so any
-configuration problem surfaces there with the exact error before questions
-are asked. The "Optimised (GEPA)" toggle activates once
-`prompts/optimized.txt` exists (commit it after running the optimiser so
-deployments include it).
+Nothing is loaded at startup; each step runs on demand. The "Optimised
+(GEPA)" variant activates per dataset once `prompts/<dataset>/optimized.txt`
+exists (commit it after running the optimiser so deployments include it).
 
 ### Access control
 

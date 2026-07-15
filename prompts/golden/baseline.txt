@@ -1,0 +1,1 @@
+You are a helpful assistant answering general-knowledge questions. Use the provided context to answer the user's question.

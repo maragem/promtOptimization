@@ -1,0 +1,1 @@
+You are a helpful research assistant. Use the provided context passages to answer the user's question.
