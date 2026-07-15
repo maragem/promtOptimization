@@ -26,6 +26,12 @@ async function fetchJSON(url, options = {}, timeoutMs = 30000) {
         "Check the server logs and try GET /api/test-model for a Bedrock connectivity diagnosis."
       );
     }
+    if (err instanceof TypeError) {
+      throw new Error(
+        "Connection to the server was lost. The server may still be working — " +
+        "wait a moment and reload the page, or check the deployment logs."
+      );
+    }
     throw err;
   } finally {
     clearTimeout(timer);
@@ -87,29 +93,73 @@ function renderDatasetCards(data) {
   );
 }
 
+function datasetStatusText(job) {
+  if (job.stage === "fetching") return "Downloading the dataset from Hugging Face…";
+  if (job.stage === "indexing") {
+    return job.total
+      ? `Indexing passages: ${job.indexed || 0}/${job.total}…`
+      : "Building the index…";
+  }
+  return "Preparing…";
+}
+
 async function selectDataset(ds) {
   if (!ds.available && !confirm(
     `First use of "${ds.label}" downloads the dataset from Hugging Face and ` +
     "builds the index. This can take a few minutes. Continue?"
   )) return;
 
-  spinner(true, ds.available
-    ? "Switching dataset and preparing the index…"
-    : "Downloading the dataset and building the index…");
+  const hint = $("dataset-hint");
+  hint.className = "init-status";
   try {
-    const result = await postJSON("/api/dataset", { id: ds.id }, 600000);
-    renderDatasetCards(result);
-    state.dataset = ds.id;
+    await postJSON("/api/dataset", { id: ds.id });
+  } catch (err) {
+    hint.className = "init-status error";
+    hint.textContent = err.message;
+    return;
+  }
+
+  document.querySelectorAll(".ds-card").forEach((c) => (c.disabled = true));
+  hint.textContent = datasetStatusText({ stage: "starting" });
+
+  // Poll the background switch job until it finishes.
+  while (true) {
+    await new Promise((r) => setTimeout(r, 2000));
+    let job;
+    try {
+      job = await fetchJSON("/api/dataset/status");
+    } catch (err) {
+      hint.textContent = `${err.message} (still checking…)`;
+      continue; // transient network blip — keep polling
+    }
+    if (job.status === "running") {
+      hint.textContent = `${datasetStatusText(job)} (${Math.round(job.elapsed_s)}s)`;
+    } else if (job.status === "error") {
+      hint.className = "init-status error";
+      hint.textContent = job.error;
+      break;
+    } else {
+      hint.className = "init-status ok";
+      hint.textContent = "Dataset ready.";
+      break;
+    }
+  }
+  document.querySelectorAll(".ds-card").forEach((c) => (c.disabled = false));
+
+  // Refresh state from the server (it reverts on failure).
+  const [datasets, cfg] = await Promise.all([
+    fetchJSON("/api/datasets"),
+    fetchJSON("/api/config"),
+  ]);
+  renderDatasetCards(datasets);
+  state.config = cfg;
+  state.dataset = datasets.active;
+  if (datasets.active === ds.id) {
     state.prompt = "baseline";
-    state.config = await fetchJSON("/api/config");
-    $("summary-dataset").textContent = state.config.dataset_label;
-    renderSampleChips(state.config.sample_questions);
+    $("summary-dataset").textContent = cfg.dataset_label;
+    renderSampleChips(cfg.sample_questions);
     $("answer-panel").hidden = true;
     await enterPromptStep();
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    spinner(false);
   }
 }
 

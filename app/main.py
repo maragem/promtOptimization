@@ -39,16 +39,16 @@ def get_pipeline():
     return _pipeline
 
 
-def ensure_index() -> None:
+def ensure_index(progress=None) -> None:
     """Build the Chroma index if missing (Railway's filesystem is ephemeral)."""
     from rag.retrieval import document_store
 
     store = document_store()
     if store.count_documents() == 0:
         logger.info("Chroma collection empty — indexing knowledge base...")
-        from indexing.build_index import main as build_index
+        from indexing.build_index import build_index
 
-        build_index()
+        build_index(progress=progress)
 
 
 # Nothing is loaded at startup: the embedding model, the index, and the
@@ -262,7 +262,49 @@ def _fetch_dataset_files(ds_id: str, target_dir: Path) -> None:
 
         fetch_hotpotqa(target_dir)
     else:
-        raise HTTPException(status_code=400, detail=f"Dataset files missing for '{ds_id}' and it is not fetchable")
+        raise RuntimeError(f"Dataset files missing for '{ds_id}' and it is not fetchable")
+
+
+# Dataset switching runs as a background job: downloading + indexing can take
+# minutes, and long synchronous requests get killed by edge proxies (the
+# browser then reports a bare "Failed to fetch"). The UI polls
+# /api/dataset/status instead.
+
+_ds_lock = threading.Lock()
+_ds_job = {"status": "idle"}
+
+
+def _ds_update(**fields) -> None:
+    with _ds_lock:
+        _ds_job.update(fields)
+
+
+def _run_dataset_switch(ds_id: str) -> None:
+    global _pipeline
+    previous = config.DATASET_ID
+    try:
+        target_dir = config.DATASETS[ds_id]["dir"]
+        if not (target_dir / "knowledge_base.json").exists():
+            logger.info("Dataset '%s' not on disk — fetching from Hugging Face...", ds_id)
+            _ds_update(stage="fetching")
+            _fetch_dataset_files(ds_id, target_dir)
+
+        config.set_dataset(ds_id)
+        _pipeline = None  # rebuild against the new Chroma collection
+        _ds_update(stage="indexing")
+        ensure_index(progress=lambda done, total: _ds_update(indexed=done, total=total))
+
+        _ds_update(status="done", stage=None, finished_at=time.time())
+        logger.info("Active dataset switched to %s", ds_id)
+    except Exception as exc:
+        config.set_dataset(previous)
+        _pipeline = None
+        logger.exception("Dataset switch to '%s' failed; reverted to '%s'", ds_id, previous)
+        _ds_update(
+            status="error",
+            error=f"{type(exc).__name__}: {exc}",
+            finished_at=time.time(),
+        )
 
 
 class DatasetRequest(BaseModel):
@@ -271,38 +313,35 @@ class DatasetRequest(BaseModel):
 
 @app.post("/api/dataset")
 def switch_dataset(req: DatasetRequest):
-    """Switch the active dataset; fetches the golden set on first use."""
-    global _pipeline
+    """Start switching the active dataset (background job; poll /api/dataset/status)."""
+    global _ds_job
     if req.id not in config.DATASETS:
         raise HTTPException(status_code=400, detail=f"Unknown dataset: {req.id}")
     with _opt_lock:
         if _opt_job.get("status") == "running":
             raise HTTPException(status_code=409, detail="Cannot switch datasets while an optimisation is running")
+    with _ds_lock:
+        if _ds_job.get("status") == "running":
+            raise HTTPException(status_code=409, detail="A dataset switch is already in progress")
+        _ds_job = {
+            "status": "running",
+            "dataset": req.id,
+            "stage": "starting",
+            "started_at": time.time(),
+            "error": None,
+        }
+    threading.Thread(target=_run_dataset_switch, args=(req.id,), daemon=True).start()
+    return {"status": "started", "dataset": req.id}
 
-    target_dir = config.DATASETS[req.id]["dir"]
-    if not (target_dir / "knowledge_base.json").exists():
-        logger.info("Dataset '%s' not on disk — fetching from Hugging Face...", req.id)
-        try:
-            _fetch_dataset_files(req.id, target_dir)
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.exception("Dataset fetch failed")
-            raise HTTPException(status_code=502, detail=f"Dataset fetch failed: {type(exc).__name__}: {exc}") from exc
 
-    previous = config.DATASET_ID
-    config.set_dataset(req.id)
-    _pipeline = None  # rebuild against the new Chroma collection
-    try:
-        ensure_index()
-    except Exception as exc:
-        config.set_dataset(previous)
-        _pipeline = None
-        logger.exception("Indexing the new dataset failed; reverted to %s", previous)
-        raise HTTPException(status_code=502, detail=f"Indexing failed: {type(exc).__name__}: {exc}") from exc
-
-    logger.info("Active dataset switched to %s", req.id)
-    return {"status": "ok", "active": config.DATASET_ID, "datasets": _dataset_entries()}
+@app.get("/api/dataset/status")
+def dataset_switch_status():
+    with _ds_lock:
+        job = dict(_ds_job)
+    if job.get("started_at"):
+        job["elapsed_s"] = round((job.get("finished_at") or time.time()) - job["started_at"], 1)
+    job["active"] = config.DATASET_ID
+    return job
 
 
 def gold_answer_for(question: str) -> str | None:
@@ -370,6 +409,9 @@ class OptimizeRequest(BaseModel):
 @app.post("/api/optimize")
 def start_optimization(req: OptimizeRequest):
     global _opt_job
+    with _ds_lock:
+        if _ds_job.get("status") == "running":
+            raise HTTPException(status_code=409, detail="Cannot optimise while a dataset switch is in progress")
     with _opt_lock:
         if _opt_job.get("status") == "running":
             raise HTTPException(status_code=409, detail="An optimisation run is already in progress")
